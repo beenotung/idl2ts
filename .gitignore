@@ -1,3 +1,5 @@
 node_modules/
 yarn.lock
 examples/data.ts
+err.log
+out.log

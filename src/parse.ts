@@ -1,5 +1,5 @@
 import {debugLine} from "./debug";
-import {iolist} from "./io";
+import {iolist, writeToFile} from "./io";
 import {registerEnum, registerStruct, registerType, toJsType} from "./type";
 import {isNDef, registerDefine} from "./macro";
 import * as util from "util";
@@ -87,14 +87,14 @@ export function parseName(text: string, offset: number): [string, number] {
 export async function parseModule(text: string, offset: number, selfFilename: string): Promise<[iolist, number]> {
     const res = [];
     offset += module.length;
-    res.push('export module');
+    // res.push('export module');
     offset = parseEmpty(text, offset, res);
     let name: string;
     [name, offset] = parseName(text, offset);
-    res.push(' ', name, '{');
+    // res.push(' ', name, '{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
-        console.debug('parsing module body');
+        console.debug('parsing module body', {offset});
         debugLine(text, offset);
         offset = parseEmpty(text, offset, res);
         if (text[offset] === '}') {
@@ -104,9 +104,12 @@ export async function parseModule(text: string, offset: number, selfFilename: st
         [subTree, offset] = await parse(text, offset, selfFilename);
         res.push(subTree);
     }
-    res.push('}');
+    // res.push('}');
     offset = skipOne(text, offset, '}', res);
-    return [res, offset];
+    offset = skipOne(text, offset, ';', res);
+    await writeToFile(res, selfFilename, name);
+    // return [res, offset];
+    return [[], offset];
 }
 
 export interface TypeName {
@@ -224,7 +227,7 @@ export function parseException(text: string, offset: number): [iolist, number] {
     let name: string;
     [name, offset] = parseName(text, offset);
     registerStruct(name);
-    res.push(' ', name, 'extends Error{');
+    res.push(' ', name, ' extends Error{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
         console.debug('parsing struct fields...');
@@ -256,6 +259,9 @@ export async function parseIfNDef(text: string, offset: number, selfFilename: st
     const ignore = !isNDef(name);
     offset = parseEmpty(text, offset, res);
     for (; ;) {
+        console.debug('try to parse ifndef body...');
+        debugLine(text, offset);
+        offset = parseEmpty(text, offset, res);
         if (text.startsWith(endif, offset)) {
             break;
         }
@@ -397,8 +403,13 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
 export async function parseFile(filename: string): Promise<iolist> {
     const text = (await util.promisify(fs.readFile)(filename)).toString();
     const [tree, offset] = await parse(text, 0, filename);
-    if (offset != text.length) {
-        console.error('not fully parsed', {filename, offset, length: text.length});
+    if (offset != text.length
+        && !(offset + 1 === text.length && text[offset + 1] === undefined)) {
+        console.error('not fully parsed', {
+            filename, offset, length: text.length
+            , char: text[offset]
+            , next: text[offset + 1]
+        });
     }
     return tree;
 }
