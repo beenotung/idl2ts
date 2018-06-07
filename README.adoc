@@ -1,0 +1,5 @@
+= idl2ts
+
+convert OMG IDL to TypeScript
+
+The original IDL, not WebIDL

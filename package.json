@@ -1,8 +1,8 @@
 {
-  "name": "idl2js",
+  "name": "idl2ts",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.ts",
   "scripts": {
     "format": "tslint -p . --fix",
     "test": "echo \"Error: no test specified\" && exit 1"
