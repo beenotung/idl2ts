@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+set -o pipefail
+ts-node src/index.ts examples/data.idl

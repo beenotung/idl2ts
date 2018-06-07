@@ -1,0 +1,96 @@
+module datasharing {
+
+  typedef string<256> transactionId;
+  typedef unsigned long long date; // like long in Java
+  typedef sequence<octet> byteSeq;
+
+  // to be used inline
+  struct multihash {
+    string Method; // e.g. SHA256
+    sequence<octet> Digest; // byte array
+  };
+
+  struct signature {
+    transactionId SignerUserId; // links to public key
+    string Method; // e.g. RSA
+    sequence<octet> Signature;
+  };
+
+  // public key
+  struct pubKey {
+    string Method; // e.g. RSA using modulus and public exponent, or PEM format
+    sequence<octet> PubKey;
+  };
+
+  struct expire {
+    transactionId TxId;
+    date ExpireDate;
+    string Reason;
+    signature Signature;
+  };
+
+  struct org {
+    transactionId TxId;
+    string OrgName;
+    pubKey OrgPubKey;
+    signature Signature;
+  };
+
+  struct department {
+    transactionId TxId;
+    string OrgId; // Org TxId;
+    string DepartmentName;
+    pubKey DepartmentPubKey;
+    signature Signature;
+  };
+
+  struct user {
+    transactionId TxId;
+    string DepartmentId;
+    string UserName;    // free text
+    pubKey UserPubKey;
+    signature Signature;
+  };
+
+  /* for data publish */
+  struct meta {
+    transactionId TxId;
+    date PublishDate;
+    sequence<string> Tags;
+    string Desc;              // optional
+    string PreviewUrl;        // optional
+    multihash ContentHash;    // hash for the raw data to be shared
+    transactionId OwnerUserId;
+    signature Signature;
+    string Price;             // e.g. HKD $200, an Apple
+  };
+
+  struct request {
+    transactionId TxId;
+    transactionId PublishTxId;
+    transactionId RequesterUserId;
+    date ExpireDate;              // timeout to auto cancel the request
+    signature Signature;
+    string Offer;                 // e.g. HKD $200, an Orange
+  };
+
+  struct reply {
+    transactionId TxId;
+    transactionId RequestTxId;
+    /*
+    .Values of Answer
+    |===
+    | code | meaning
+    | 0x00 | reject
+    | 0x01 | accept
+    | 0x02 - 0xff | reserved
+    |===
+    */
+    octet Answer;
+    sequence<octet> DataUrl; // the link or data can be encrypted by the requester pubKey
+    string EncryptionMethod; // optional, e.g. RSA-Url, RSA-Content
+    date ExpireDate; // expire time of the DataUrl if it's not permanent
+    signature Signature;
+  };
+
+};

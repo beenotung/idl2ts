@@ -1,0 +1,53 @@
+#ifndef _datasharing_shared_
+#define _datasharing_shared_
+
+#include "data.idl"
+
+module datasharing {
+
+    typedef sequence<org> OrgSeq;
+    typedef sequence<department> DepartmentSeq;
+    typedef sequence<user> UserSeq;
+
+    struct block {
+      unsigned long long Height;
+      date Time;
+      unsigned long NumOfTx;
+      string Miner; // TODO confirm the data type
+      multihash PrevHash;
+      multihash BlockHash;
+    };
+
+    struct dataContainer {
+      short Type;
+      transactionId TxId;
+      any Data;
+    };
+
+    // for creation
+    struct newDataContainer {
+      short Type;
+      any Data;
+    };
+
+    exception NotFound {};
+    exception Duplicated {};
+    exception NetworkError {};
+    exception OutOfSpace {};
+    enum AuthErrorType {
+      ORG_AUTH_ERROR,
+      DEPARTMENT_AUTH_ERROR,
+      USER_AUTH_ERROR
+    };
+    enum AuthErrorReason {
+      NOT_FOUND,
+      INVALID // e.g. signature doesn't match
+    };
+    exception AuthError {
+      AuthErrorType Type;
+      AuthErrorReason Reason;
+    };
+
+};
+
+#endif
