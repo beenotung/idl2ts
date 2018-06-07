@@ -1,25 +1,38 @@
+import {iolist} from "./io";
+
 const unsigned = 'unsigned';
-const customTypes = new Set<string>();
-const customStructs = new Set<string>();
-const customEnums = new Set<string>();
 
-export function registerType(name: string) {
-    customTypes.add(name);
+/* store the filename */
+const customTypes = new Map<string, string>();
+const customStructs = new Map<string, string>();
+const customEnums = new Map<string, string>();
+
+export function registerType(name: string, filename: string) {
+    customTypes.set(name, filename);
 }
 
-export function registerStruct(name: string) {
-    customStructs.add(name);
+export function registerStruct(name: string, filename: string) {
+    customStructs.set(name, filename);
 }
 
-export function registerEnum(name: string) {
-    customEnums.add(name);
+export function registerEnum(name: string, filename: string) {
+    customEnums.set(name, filename);
 }
 
-export function toJsType(type: string) {
+export function toJsType(type: string, selfFilename: string, preRes: iolist): string {
     if (customTypes.has(type)
         || customStructs.has(type)
-        || customEnums.has(type)
-    ) {
+        || customEnums.has(type)) {
+        const sourceFilename =
+            customTypes.get(type)
+            || customStructs.get(type)
+            || customEnums.get(type)
+            || selfFilename;
+        if (sourceFilename != selfFilename) {
+            // const relativeFilename = toRelativeFilename(sourceFilename, selfFilename);
+            // const moduleName = relativeFilename.replace(/\.ts$/, ''); // FIXME
+            // preRes.push(`import{${type}}from"${moduleName}";`);
+        }
         return type;
     }
     type = type.split(' ')
@@ -33,7 +46,7 @@ export function toJsType(type: string) {
     }
     if (type.startsWith('sequence<') && type.endsWith('>')) {
         type = type.substring('sequence<'.length, type.length - 1);
-        return `Array<${toJsType(type)}>`;
+        return `Array<${toJsType(type, selfFilename, preRes)}>`;
     }
     switch (type) {
         case 'octet':

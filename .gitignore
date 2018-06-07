@@ -1,5 +1,5 @@
 node_modules/
 yarn.lock
-examples/data.ts
+examples/datasharing
 err.log
 out.log

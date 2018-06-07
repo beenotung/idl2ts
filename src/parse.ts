@@ -117,28 +117,33 @@ export interface TypeName {
     name: string
 }
 
-export function parseTypeName(text: string, offset: number, res: iolist): [TypeName, number] {
+export interface Context {
+    idlFilename: string
+    preRes: iolist
+}
+
+export function parseTypeName(text: string, offset: number, res: iolist, ctx: Context): [TypeName, number] {
     console.debug('parseTypeName', {offset});
     debugLine(text, offset);
     const end = text.indexOf(';', offset);
     const type_name = text.substring(offset, end);
     const ss = type_name.split(' ');
     const name = ss.pop();
-    registerType(name);
+    registerType(name, ctx.idlFilename);
     let type = ss.join(' ');
-    type = toJsType(type);
+    type = toJsType(type, ctx.idlFilename, ctx.preRes);
     offset = end;
     offset = skipOne(text, offset, ';', res);
     return [{type, name}, offset];
 }
 
-export function parseTypeDef(text: string, offset: number): [iolist, number] {
+export function parseTypeDef(text: string, offset: number, ctx: Context): [iolist, number] {
     const res = [];
     offset += typedef.length;
     res.push('export type');
     offset = parseEmpty(text, offset, res);
     let typeName: TypeName;
-    [typeName, offset] = parseTypeName(text, offset, res);
+    [typeName, offset] = parseTypeName(text, offset, res, ctx);
     res.push(' ', typeName.name, '=', typeName.type, ';');
     return [res, offset];
 }
@@ -186,7 +191,7 @@ export function parseEmpty(text: string, offset: number, res: iolist): number {
     return offset;
 }
 
-export function parseStruct(text: string, offset: number): [iolist, number] {
+export function parseStruct(text: string, offset: number, ctx: Context): [iolist, number] {
     console.debug('parseStruct', {offset});
     debugLine(text, offset);
     const res = [];
@@ -195,7 +200,7 @@ export function parseStruct(text: string, offset: number): [iolist, number] {
     offset = parseEmpty(text, offset, res);
     let name: string;
     [name, offset] = parseName(text, offset);
-    registerStruct(name);
+    registerStruct(name, ctx.idlFilename);
     res.push(' ', name, '{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
@@ -208,7 +213,7 @@ export function parseStruct(text: string, offset: number): [iolist, number] {
             break;
         }
         let typeName: TypeName;
-        [typeName, offset] = parseTypeName(text, offset, res);
+        [typeName, offset] = parseTypeName(text, offset, res, ctx);
         res.push(typeName.name, ':', typeName.type, ';');
     }
     res.push('}');
@@ -217,7 +222,7 @@ export function parseStruct(text: string, offset: number): [iolist, number] {
     return [res, offset];
 }
 
-export function parseException(text: string, offset: number): [iolist, number] {
+export function parseException(text: string, offset: number, ctx: Context): [iolist, number] {
     console.debug('parseException', {offset});
     debugLine(text, offset);
     const res = [];
@@ -226,7 +231,7 @@ export function parseException(text: string, offset: number): [iolist, number] {
     offset = parseEmpty(text, offset, res);
     let name: string;
     [name, offset] = parseName(text, offset);
-    registerStruct(name);
+    registerStruct(name, ctx.idlFilename);
     res.push(' ', name, ' extends Error{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
@@ -239,7 +244,7 @@ export function parseException(text: string, offset: number): [iolist, number] {
             break;
         }
         let typeName: TypeName;
-        [typeName, offset] = parseTypeName(text, offset, res);
+        [typeName, offset] = parseTypeName(text, offset, res, ctx);
         res.push(typeName.name, ':', typeName.type, ';');
     }
     res.push('}');
@@ -314,14 +319,14 @@ export async function parseInclude(text: string, offset: number, selfFilename: s
     return [res, offset];
 }
 
-export function parseEnum(text: string, offset: number): [iolist, number] {
+export function parseEnum(text: string, offset: number, ctx: Context): [iolist, number] {
     const res = [];
     res.push('export enum');
     offset += enum_.length;
     let name: string;
     offset = parseEmpty(text, offset, res);
     [name, offset] = parseName(text, offset);
-    registerEnum(name);
+    registerEnum(name, ctx.idlFilename);
     res.push(' ', name, '{');
     offset = skipOne(text, offset, '{', res);
     let first = true;
@@ -356,39 +361,46 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
     console.debug('parse', {offset});
     debugLine(text, offset);
     offset = parseSpace(text, offset);
+    const ctx = {
+        idlFilename: selfFilename
+        , preRes: [] // TODO use it
+    };
+    const defer = (res): Promise<[iolist, number]> => Promise.resolve(res).then(([res, offset]) => {
+        return [[ctx.preRes, res], offset]as [iolist, number];
+    });
 
     /* macro */
     if (startsWith(define, text, offset)) {
-        return parseDefine(text, offset);
+        return defer(parseDefine(text, offset));
     }
     if (startsWith(ifndef, text, offset)) {
-        return parseIfNDef(text, offset, selfFilename);
+        return defer(parseIfNDef(text, offset, selfFilename));
     }
     if (startsWith(include, text, offset)) {
-        return parseInclude(text, offset, selfFilename);
+        return defer(parseInclude(text, offset, selfFilename));
     }
 
     /* code */
     if (startsWith(module, text, offset)) {
-        return parseModule(text, offset, selfFilename);
+        return defer(parseModule(text, offset, selfFilename));
     }
     if (startsWith(typedef, text, offset)) {
-        return parseTypeDef(text, offset);
+        return defer(parseTypeDef(text, offset, ctx));
     }
     if (startsWith('//', text, offset)) {
-        return parseComment(text, offset);
+        return defer(parseComment(text, offset));
     }
     if (startsWith('/*', text, offset)) {
-        return parseBlockComment(text, offset);
+        return defer(parseBlockComment(text, offset));
     }
     if (startsWith(struct, text, offset)) {
-        return parseStruct(text, offset);
+        return defer(parseStruct(text, offset, ctx));
     }
     if (startsWith(exception, text, offset)) {
-        return parseException(text, offset);
+        return defer(parseException(text, offset, ctx));
     }
     if (startsWith(enum_, text, offset)) {
-        return parseEnum(text, offset);
+        return defer(parseEnum(text, offset, ctx));
     }
 
     /* unknown token */
