@@ -1,6 +1,7 @@
 const unsigned = 'unsigned';
 const customTypes = new Set<string>();
 const customStructs = new Set<string>();
+const customEnums = new Set<string>();
 
 export function registerType(name: string) {
     customTypes.add(name);
@@ -10,9 +11,15 @@ export function registerStruct(name: string) {
     customStructs.add(name);
 }
 
+export function registerEnum(name: string) {
+    customEnums.add(name);
+}
+
 export function toJsType(type: string) {
     if (customTypes.has(type)
-        || customStructs.has(type)) {
+        || customStructs.has(type)
+        || customEnums.has(type)
+    ) {
         return type;
     }
     type = type.split(' ')

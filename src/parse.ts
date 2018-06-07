@@ -1,11 +1,12 @@
 import {debugLine} from "./debug";
 import {iolist} from "./io";
-import {registerStruct, registerType, toJsType} from "./type";
+import {registerEnum, registerStruct, registerType, toJsType} from "./type";
 import {isNDef, registerDefine} from "./macro";
 import * as util from "util";
 import * as fs from "fs";
 import {transpileFile} from "./transpiler";
 import {getDir} from "./path";
+import {getLineNum} from "./string";
 
 export const ifndef = '#ifndef';
 export const endif = '#endif';
@@ -15,6 +16,8 @@ export const include = '#include';
 export const module = 'module';
 export const typedef = 'typedef';
 export const struct = 'struct';
+export const exception = 'exception';
+export const enum_ = 'enum';
 
 export function skipAll(text: string, offset: number, char: string): number {
     for (; text[offset] === char && offset < text.length; offset++) {
@@ -211,6 +214,37 @@ export function parseStruct(text: string, offset: number): [iolist, number] {
     return [res, offset];
 }
 
+export function parseException(text: string, offset: number): [iolist, number] {
+    console.debug('parseException', {offset});
+    debugLine(text, offset);
+    const res = [];
+    offset += exception.length;
+    res.push('export class');
+    offset = parseEmpty(text, offset, res);
+    let name: string;
+    [name, offset] = parseName(text, offset);
+    registerStruct(name);
+    res.push(' ', name, 'extends Error{');
+    offset = skipOne(text, offset, '{', res);
+    for (; ;) {
+        console.debug('parsing struct fields...');
+        debugLine(text, offset);
+        offset = parseEmpty(text, offset, res);
+        console.debug('after empty');
+        debugLine(text, offset);
+        if (text[offset] === '}') {
+            break;
+        }
+        let typeName: TypeName;
+        [typeName, offset] = parseTypeName(text, offset, res);
+        res.push(typeName.name, ':', typeName.type, ';');
+    }
+    res.push('}');
+    offset = skipOne(text, offset, '}', res);
+    offset = skipOne(text, offset, ';', res);
+    return [res, offset];
+}
+
 export async function parseIfNDef(text: string, offset: number, selfFilename: string): Promise<[iolist, number]> {
     console.debug('parseIfNDef', {offset});
     debugLine(text, offset);
@@ -274,47 +308,97 @@ export async function parseInclude(text: string, offset: number, selfFilename: s
     return [res, offset];
 }
 
+export function parseEnum(text: string, offset: number): [iolist, number] {
+    const res = [];
+    res.push('export enum');
+    offset += enum_.length;
+    let name: string;
+    offset = parseEmpty(text, offset, res);
+    [name, offset] = parseName(text, offset);
+    registerEnum(name);
+    res.push(' ', name, '{');
+    offset = skipOne(text, offset, '{', res);
+    let first = true;
+    for (; ;) {
+        console.debug('try to parse enum value...', {offset});
+        debugLine(text, offset);
+        offset = parseEmpty(text, offset, res);
+        if (text[offset] === '}') {
+            break;
+        }
+        if (first) {
+            first = false;
+        } else {
+            res.push(',');
+            offset = skipOne(text, offset, ',', res);
+            offset = parseEmpty(text, offset, res);
+        }
+        [name, offset] = parseName(text, offset);
+        res.push(name);
+    }
+    res.push('}');
+    offset = skipOne(text, offset, '}', res);
+    offset = skipOne(text, offset, ';', res);
+    return [res, offset];
+}
+
+function startsWith(pattern: string, text: string, offset: number): boolean {
+    return text.startsWith(pattern, offset) && !isNameChar(text[offset + pattern.length]);
+}
+
 export async function parse(text: string, offset = 0, selfFilename: string): Promise<[iolist, number]> {
     console.debug('parse', {offset});
     debugLine(text, offset);
     offset = parseSpace(text, offset);
 
     /* macro */
-    if (text.startsWith(define, offset)) {
+    if (startsWith(define, text, offset)) {
         return parseDefine(text, offset);
     }
-    if (text.startsWith(ifndef, offset)) {
+    if (startsWith(ifndef, text, offset)) {
         return parseIfNDef(text, offset, selfFilename);
     }
-    if (text.startsWith(include, offset)) {
+    if (startsWith(include, text, offset)) {
         return parseInclude(text, offset, selfFilename);
     }
 
     /* code */
-    if (text.startsWith(module, offset)) {
+    if (startsWith(module, text, offset)) {
         return parseModule(text, offset, selfFilename);
     }
-    if (text.startsWith(typedef, offset)) {
+    if (startsWith(typedef, text, offset)) {
         return parseTypeDef(text, offset);
     }
-    if (text.startsWith('//', offset)) {
+    if (startsWith('//', text, offset)) {
         return parseComment(text, offset);
     }
-    if (text.startsWith('/*', offset)) {
+    if (startsWith('/*', text, offset)) {
         return parseBlockComment(text, offset);
     }
-    if (text.startsWith(struct, offset)) {
+    if (startsWith(struct, text, offset)) {
         return parseStruct(text, offset);
+    }
+    if (startsWith(exception, text, offset)) {
+        return parseException(text, offset);
+    }
+    if (startsWith(enum_, text, offset)) {
+        return parseEnum(text, offset);
     }
 
     /* unknown token */
-    console.error('end, offset=', offset);
-    console.error('total length=', text.length);
+    console.error({
+        filename: selfFilename, offset, len: text.length
+        , line: getLineNum(text, offset)
+    });
     debugLine(text, offset);
     throw new Error('unexpected text');
 }
 
-export async function parseFile(filename: string): Promise<[iolist, number]> {
+export async function parseFile(filename: string): Promise<iolist> {
     const text = (await util.promisify(fs.readFile)(filename)).toString();
-    return parse(text, 0, filename);
+    const [tree, offset] = await parse(text, 0, filename);
+    if (offset != text.length) {
+        console.error('not fully parsed', {filename, offset, length: text.length});
+    }
+    return tree;
 }
