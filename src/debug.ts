@@ -1,27 +1,31 @@
 export function debugLine(text: string, offset: number) {
-    let end = 0;
-    let start = 0;
-    for (; end < offset; end++) {
-        start = end;
-        end = text.indexOf('\n', end);
+    if (text[offset] === '\n') {
+        let start = text.lastIndexOf('\n', offset - 1);
+        if (start === -1) {
+            start = 0;
+        }
+        const end = text.indexOf('\n', start);
+        const line = text.substring(start, end);
+        const decorator = '='.repeat(line.length + 1);
+        console.debug(decorator);
+        console.debug(line);
+        console.debug(' '.repeat(line.length) + '^ (newline)');
+        console.debug(decorator);
+        return;
     }
-    let nSpace = offset - start;
-    if (end === 0) {
-        end = text.indexOf('\n');
-        nSpace = 0;
-    }
+    const start = text.lastIndexOf('\n', offset) + 1;
+    const end = text.indexOf('\n', offset);
+    const nSpace = offset - start;
     const line = text.substring(start, end);
-    console.debug('='.repeat(line.length));
+    const decorator = '='.repeat(line.length);
+    /*
+    console.debug({
+        start, end, nSpace, line, offset
+        , char: text[offset]
+    });
+    */
+    console.debug(decorator);
     console.debug(line);
     console.debug(' '.repeat(nSpace) + '^');
-    if (text[offset] === '\n') {
-        const next = text.indexOf('\n', end + 1);
-        console.debug(text.substring(end + 1, next));
-    }
-    console.debug('='.repeat(line.length));
-    console.debug({
-        start, end, offset, char: text[offset], code: text.charCodeAt(offset)
-        , pre: text[offset - 1]
-        , post: text[offset + 1]
-    });
+    console.debug(decorator);
 }

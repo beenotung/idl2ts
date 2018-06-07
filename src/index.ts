@@ -18,7 +18,10 @@ async function main() {
             return process.exit(1);
         }
         const text = data.toString();
-        const tree = parse(text);
+        const [tree, offset] = parse(text);
+        if (offset != text.length) {
+            console.error('not fully parsed', {offset, length: text.length});
+        }
         console.debug('tree=', tree);
         const code = iolist_to_string(tree);
         const tsFilename = filename.replace('.idl', '.ts');

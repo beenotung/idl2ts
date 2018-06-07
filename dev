@@ -1,4 +1,5 @@
 #!/bin/bash
 set -e
 set -o pipefail
+npm run format
 ts-node src/index.ts examples/data.idl

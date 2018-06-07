@@ -89,7 +89,7 @@ module datasharing {
     octet Answer;
     sequence<octet> DataUrl; // the link or data can be encrypted by the requester pubKey
     string EncryptionMethod; // optional, e.g. RSA-Url, RSA-Content
-    date ExpireDate; // expire time of the DataUrl if it's not permanent
+    date ExpireDate;         // expire time of the DataUrl if it's not permanent
     signature Signature;
   };
 
