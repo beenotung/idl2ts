@@ -1,6 +1,20 @@
 import {debugLine} from "./debug";
 import {iolist} from "./io";
 import {registerStruct, registerType, toJsType} from "./type";
+import {isNDef, registerDefine} from "./macro";
+import * as util from "util";
+import * as fs from "fs";
+import {transpileFile} from "./transpiler";
+import {getDir} from "./path";
+
+export const ifndef = '#ifndef';
+export const endif = '#endif';
+export const define = '#define';
+export const include = '#include';
+
+export const module = 'module';
+export const typedef = 'typedef';
+export const struct = 'struct';
 
 export function skipAll(text: string, offset: number, char: string): number {
     for (; text[offset] === char && offset < text.length; offset++) {
@@ -47,24 +61,27 @@ export function isAlphaNum(c: string): boolean {
     return isNum(c) || isAlpha(c);
 }
 
-export const module = 'module';
-export const typedef = 'typedef';
-export const struct = 'struct';
+export function isNameChar(c: string): boolean {
+    return c === '_' || isAlphaNum(c);
+}
 
 export function parseName(text: string, offset: number): [string, number] {
-    offset = parseSpace(text, offset);
-    if (!isAlpha(text[offset])) {
+    console.debug('parseName', {offset});
+    debugLine(text, offset);
+    const first = text[offset];
+    if (!(first === '_' || isAlpha(first))) {
+        debugLine(text, offset);
         throw new Error(`expect name, but see '${text[offset]}' at [${offset}]`);
     }
     const start = offset;
     offset++;
-    for (; isAlphaNum(text[offset]); offset++) {
+    for (; offset < text.length && isNameChar(text[offset]); offset++) {
     }
     const name = text.substring(start, offset);
     return [name, offset];
 }
 
-export function parseModule(text: string, offset: number): [iolist, number] {
+export async function parseModule(text: string, offset: number, selfFilename: string): Promise<[iolist, number]> {
     const res = [];
     offset += module.length;
     res.push('export module');
@@ -81,7 +98,7 @@ export function parseModule(text: string, offset: number): [iolist, number] {
             break;
         }
         let subTree: iolist;
-        [subTree, offset] = parse(text, offset);
+        [subTree, offset] = await parse(text, offset, selfFilename);
         res.push(subTree);
     }
     res.push('}');
@@ -164,9 +181,12 @@ export function parseEmpty(text: string, offset: number, res: iolist): number {
 }
 
 export function parseStruct(text: string, offset: number): [iolist, number] {
+    console.debug('parseStruct', {offset});
+    debugLine(text, offset);
     const res = [];
     offset += struct.length;
     res.push('export interface');
+    offset = parseEmpty(text, offset, res);
     let name: string;
     [name, offset] = parseName(text, offset);
     registerStruct(name);
@@ -191,10 +211,88 @@ export function parseStruct(text: string, offset: number): [iolist, number] {
     return [res, offset];
 }
 
-export function parse(text: string, offset = 0): [iolist, number] {
+export async function parseIfNDef(text: string, offset: number, selfFilename: string): Promise<[iolist, number]> {
+    console.debug('parseIfNDef', {offset});
+    debugLine(text, offset);
+    const res = [];
+    offset += ifndef.length;
+    let name: string;
     offset = parseSpace(text, offset);
+    [name, offset] = parseName(text, offset);
+    const ignore = !isNDef(name);
+    offset = parseEmpty(text, offset, res);
+    for (; ;) {
+        if (text.startsWith(endif, offset)) {
+            break;
+        }
+        let sub: iolist;
+        [sub, offset] = await parse(text, offset, selfFilename);
+        if (!ignore) {
+            res.push(sub);
+        }
+    }
+    offset += endif.length;
+    return [res, offset];
+}
+
+export function parseDefine(text: string, offset: number): [iolist, number] {
+    console.debug('parseDefine', {offset});
+    debugLine(text, offset);
+    offset += define.length;
+    offset = parseSpace(text, offset);
+    let name: string;
+    [name, offset] = parseName(text, offset);
+    registerDefine(name);
+    return [[], offset];
+}
+
+export async function parseInclude(text: string, offset: number, selfFilename: string): Promise<[iolist, number]> {
+    console.debug('parseInclude', {offset});
+    debugLine(text, offset);
+    offset += include.length;
+    const res = [];
+    offset = parseSpace(text, offset);
+    if (text[offset] !== '"') {
+        // TODO support #include <file.idl>
+        debugLine(text, offset);
+        throw new Error('expect #include "file.idl"');
+    }
+    offset = skipOne(text, offset, '"', res);
+    if (res.length != 0) {
+        console.error({offset, res});
+        throw new Error('unexpected text, comment?');
+    }
+    const start = offset;
+    const end = text.indexOf('"', offset);
+    let filename = text.substring(start, end);
+    if (isNameChar(filename[0])) {
+        // resolve relative path
+        filename = getDir(selfFilename) + '/' + filename;
+    }
+    await transpileFile(filename);
+    offset = end + 1;
+    return [res, offset];
+}
+
+export async function parse(text: string, offset = 0, selfFilename: string): Promise<[iolist, number]> {
+    console.debug('parse', {offset});
+    debugLine(text, offset);
+    offset = parseSpace(text, offset);
+
+    /* macro */
+    if (text.startsWith(define, offset)) {
+        return parseDefine(text, offset);
+    }
+    if (text.startsWith(ifndef, offset)) {
+        return parseIfNDef(text, offset, selfFilename);
+    }
+    if (text.startsWith(include, offset)) {
+        return parseInclude(text, offset, selfFilename);
+    }
+
+    /* code */
     if (text.startsWith(module, offset)) {
-        return parseModule(text, offset);
+        return parseModule(text, offset, selfFilename);
     }
     if (text.startsWith(typedef, offset)) {
         return parseTypeDef(text, offset);
@@ -208,8 +306,15 @@ export function parse(text: string, offset = 0): [iolist, number] {
     if (text.startsWith(struct, offset)) {
         return parseStruct(text, offset);
     }
+
+    /* unknown token */
     console.error('end, offset=', offset);
     console.error('total length=', text.length);
     debugLine(text, offset);
     throw new Error('unexpected text');
+}
+
+export async function parseFile(filename: string): Promise<[iolist, number]> {
+    const text = (await util.promisify(fs.readFile)(filename)).toString();
+    return parse(text, 0, filename);
 }

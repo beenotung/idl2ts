@@ -1,6 +1,4 @@
-import * as fs from 'fs';
-import {parse} from "./parse";
-import {iolist_to_string} from "./io";
+import {transpileFile} from "./transpiler";
 
 async function main() {
     if (process.argv.length != 3) {
@@ -8,31 +6,7 @@ async function main() {
         return process.exit(1);
     }
     const filename = process.argv[2];
-    if (!filename.endsWith('.idl')) {
-        console.error(`input file should be .idl`);
-    }
-    console.error(`reading ${filename}...`);
-    fs.readFile(filename, (err, data) => {
-        if (err) {
-            console.error(err);
-            return process.exit(1);
-        }
-        const text = data.toString();
-        const [tree, offset] = parse(text);
-        if (offset != text.length) {
-            console.error('not fully parsed', {offset, length: text.length});
-        }
-        console.debug('tree=', tree);
-        const code = iolist_to_string(tree);
-        const tsFilename = filename.replace('.idl', '.ts');
-        fs.writeFile(tsFilename, code, err => {
-            if (err) {
-                console.error(err);
-                return process.exit(1);
-            }
-            console.log('saved to ' + tsFilename);
-        });
-    });
+    await transpileFile(filename);
 }
 
 main();
