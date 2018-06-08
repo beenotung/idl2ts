@@ -6,6 +6,7 @@ const unsigned = 'unsigned';
 const customTypes = new Map<string, string>();
 const customStructs = new Map<string, string>();
 const customEnums = new Map<string, string>();
+const customException = new Map<string, string>();
 
 export function registerType(name: string, filename: string) {
     customTypes.set(name, filename);
@@ -19,14 +20,22 @@ export function registerEnum(name: string, filename: string) {
     customEnums.set(name, filename);
 }
 
+export function registerException(name: string, filename: string) {
+    customException.set(name, filename);
+}
+
+// TODO explicitly specify the type, e.g. the client may expect an exception, not enum
 export function toJsType(type: string, selfFilename: string, preRes: iolist): string {
     if (customTypes.has(type)
         || customStructs.has(type)
-        || customEnums.has(type)) {
+        || customEnums.has(type)
+        || customException.has(type)
+    ) {
         const sourceFilename =
             customTypes.get(type)
             || customStructs.get(type)
             || customEnums.get(type)
+            || customException.get(type)
             || selfFilename;
         if (sourceFilename != selfFilename) {
             // const relativeFilename = toRelativeFilename(sourceFilename, selfFilename);

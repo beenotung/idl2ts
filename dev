@@ -4,4 +4,5 @@ set -o pipefail
 rm -rf dist
 npm run format
 #ts-node src/index.ts examples/data.idl
-ts-node src/index.ts examples/shared.idl
+#ts-node src/index.ts examples/shared.idl
+ts-node src/index.ts examples/server.idl

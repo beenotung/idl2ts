@@ -3,7 +3,7 @@
 import {transpileFile} from "./transpiler";
 
 async function main() {
-    console.debug = () => {};
+    // console.debug = () => {};
     if (process.argv.length != 3) {
         console.error('expect 1 argument of IDL filename');
         return process.exit(1);

@@ -1,6 +1,6 @@
 import {debugLine} from "./debug";
-import {iolist, writeToFile} from "./io";
-import {registerEnum, registerStruct, registerType, toJsType} from "./type";
+import {iolist, iolist_to_string, writeToFile} from "./io";
+import {registerEnum, registerException, registerStruct, registerType, toJsType} from "./type";
 import {isNDef, registerDefine} from "./macro";
 import * as util from "util";
 import * as fs from "fs";
@@ -18,6 +18,11 @@ export const typedef = 'typedef';
 export const struct = 'struct';
 export const exception = 'exception';
 export const enum_ = 'enum';
+export const interface_ = 'interface';
+export const raises = 'raises';
+export const in_ = 'in';
+export const out = 'out';
+export const inout = 'inout';
 
 export function skipAll(text: string, offset: number, char: string): number {
     for (; text[offset] === char && offset < text.length; offset++) {
@@ -231,7 +236,7 @@ export function parseException(text: string, offset: number, ctx: Context): [iol
     offset = parseEmpty(text, offset, res);
     let name: string;
     [name, offset] = parseName(text, offset);
-    registerStruct(name, ctx.idlFilename);
+    registerException(name, ctx.idlFilename);
     res.push(' ', name, ' extends Error{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
@@ -353,6 +358,96 @@ export function parseEnum(text: string, offset: number, ctx: Context): [iolist, 
     return [res, offset];
 }
 
+export async function parseInterface(text: string, offset: number, ctx: Context): Promise<[iolist, number]> {
+    const res = [];
+    offset += interface_.length;
+    res.push('export abstract class');
+    offset = parseEmpty(text, offset, res);
+    let name: string;
+    [name, offset] = parseName(text, offset);
+    res.push(' ', name, '{');
+    offset = parseEmpty(text, offset, res);
+    offset = skipOne(text, offset, '{', res);
+    for (; ;) {
+        offset = parseEmpty(text, offset, res);
+        if (text.startsWith('}', offset)) {
+            break;
+        }
+        let methodType: string;
+        [methodType, offset] = parseName(text, offset);
+        offset = parseEmpty(text, offset, res);
+        let methodName: string;
+        [methodName, offset] = parseName(text, offset);
+        offset = parseEmpty(text, offset, res);
+        offset = skipOne(text, offset, '(', res);
+        const args = [];
+        let firstArgs = true;
+        for (; ;) {
+            offset = parseEmpty(text, offset, res);
+            if (text.startsWith(')', offset)) {
+                break;
+            }
+            if (!firstArgs) {
+                offset = skipOne(text, offset, ',', res);
+                offset = parseEmpty(text, offset, res);
+            }
+            // TODO design Box for out and inout
+            let type: 'in' | 'out' | 'inout';
+            if (startsWith(inout, text, offset)) {
+                type = 'inout';
+            } else if (startsWith(in_, text, offset)) {
+                type = 'in';
+            } else if (startsWith(out, text, offset)) {
+                type = 'out';
+            } else {
+                console.error({offset});
+                debugLine(text, offset);
+                throw new Error('unexpected text');
+            }
+            offset += type.length;
+            offset = parseEmpty(text, offset, res);
+            let argType: string;
+            [argType, offset] = parseName(text, offset);
+            offset = parseEmpty(text, offset, res);
+            let argName: string;
+            [argName, offset] = parseName(text, offset);
+            if (firstArgs) {
+                firstArgs = false;
+            } else {
+                args.push(',');
+            }
+            res.push(` ${argName}:${toJsType(argType, ctx.idlFilename, ctx.preRes)}`);
+        }
+        offset = skipOne(text, offset, ')', res);
+        offset = parseEmpty(text, offset, res);
+        const exceptions: string[] = [];
+        if (text.startsWith(raises, offset)) {
+            offset += raises.length;
+            offset = skipOne(text, offset, '(', res);
+            for (; ;) {
+                offset = parseEmpty(text, offset, res);
+                if (text.startsWith(')', offset)) {
+                    break;
+                }
+                let exceptionName: string;
+                [exceptionName, offset] = parseName(text, offset);
+                const name = toJsType(exceptionName, ctx.idlFilename, ctx.preRes);
+                exceptions.push(name);
+            }
+            offset = skipOne(text, offset, ')', res);
+            offset = skipOne(text, offset, ';', res);
+        }
+        if (exceptions.length > 0) {
+            res.push(`/** @throws ${exceptions.join(',')} */`);
+        }
+        res.push(` abstract ${methodName}(${iolist_to_string(args)}):${methodType};`);
+    }
+    res.push('}');
+    offset = skipOne(text, offset, '}', res);
+    offset = skipOne(text, offset, ';', res);
+    return [res, offset];
+}
+
 function startsWith(pattern: string, text: string, offset: number): boolean {
     return text.startsWith(pattern, offset) && !isNameChar(text[offset + pattern.length]);
 }
@@ -363,7 +458,7 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
     offset = parseSpace(text, offset);
     const ctx = {
         idlFilename: selfFilename
-        , preRes: [] // TODO use it
+        , preRes: []
     };
     const defer = (res): Promise<[iolist, number]> => Promise.resolve(res).then(([res, offset]) => {
         return [[ctx.preRes, res], offset]as [iolist, number];
@@ -402,6 +497,9 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
     if (startsWith(enum_, text, offset)) {
         return defer(parseEnum(text, offset, ctx));
     }
+    if (startsWith(interface_, text, offset)) {
+        return defer(parseInterface(text, offset, ctx));
+    }
 
     /* unknown token */
     console.error({
@@ -414,14 +512,22 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
 
 export async function parseFile(filename: string): Promise<iolist> {
     const text = (await util.promisify(fs.readFile)(filename)).toString();
-    const [tree, offset] = await parse(text, 0, filename);
-    if (offset != text.length
-        && !(offset + 1 === text.length && text[offset + 1] === undefined)) {
-        console.error('not fully parsed', {
-            filename, offset, length: text.length
-            , char: text[offset]
-            , next: text[offset + 1]
-        });
+    const topTrees = [];
+    let offset = 0;
+    for (; ;) {
+        let tree: iolist;
+        [tree, offset] = await parse(text, offset, filename);
+        topTrees.push(tree);
+        if (offset != text.length
+            && !(offset + 1 === text.length && text[offset + 1] === undefined)) {
+            console.log('continue to parse', {
+                filename, offset, length: text.length
+                , char: text[offset]
+                , next: text[offset + 1]
+            });
+            continue;
+        }
+        break;
     }
-    return tree;
+    return topTrees;
 }

@@ -1,3 +1,4 @@
+// TODO make an error version
 export function debugLine(text: string, offset: number) {
     if (text[offset] === '\n') {
         let start = text.lastIndexOf('\n', offset - 1);
