@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "idl2ts": "./dist/index"
+    "idl2ts": "./dist/index.js"
   },
   "scripts": {
     "postinstall": "npm run build",
@@ -26,8 +26,7 @@
   "directories": {
     "example": "examples"
   },
-  "dependencies": {
-  },
+  "dependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/beenotung/idl2ts.git"
