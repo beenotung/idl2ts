@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import {transpileFile} from "./transpiler";
 
 async function main() {

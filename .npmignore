@@ -3,4 +3,4 @@ yarn.lock
 examples/datasharing
 err.log
 out.log
-dist/
+src/
