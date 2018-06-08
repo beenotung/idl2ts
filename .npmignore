@@ -1,6 +1,9 @@
 node_modules/
 yarn.lock
-examples/datasharing
+examples/
 err.log
 out.log
 src/
+.idea/
+dev
+run
