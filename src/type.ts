@@ -74,6 +74,8 @@ export function toJsType(type: string, selfFilename: string, preRes: iolist): st
         case 'short':
         case 'long':
         case 'long long':
+        case 'float':
+        case 'double':
             return 'number';
     }
     throw new Error(`unknown type: '${type}'`);
