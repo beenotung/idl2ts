@@ -1,5 +1,4 @@
-// TODO make an error version
-export function debugLine(text: string, offset: number) {
+export function printLine(text: string, offset: number, logger) {
     if (text[offset] === '\n') {
         let start = text.lastIndexOf('\n', offset - 1);
         if (start === -1) {
@@ -8,10 +7,10 @@ export function debugLine(text: string, offset: number) {
         const end = text.indexOf('\n', start);
         const line = text.substring(start, end);
         const decorator = '='.repeat(line.length + 1);
-        console.debug(decorator);
-        console.debug(line);
-        console.debug(' '.repeat(line.length) + '^ (newline)');
-        console.debug(decorator);
+        logger(decorator);
+        logger(line);
+        logger(' '.repeat(line.length) + '^ (newline)');
+        logger(decorator);
         return;
     }
     const start = text.lastIndexOf('\n', offset) + 1;
@@ -20,13 +19,21 @@ export function debugLine(text: string, offset: number) {
     const line = text.substring(start, end);
     const decorator = '='.repeat(line.length);
     /*
-    console.debug({
+    logger({
         start, end, nSpace, line, offset
         , char: text[offset]
     });
     */
-    console.debug(decorator);
-    console.debug(line);
-    console.debug(' '.repeat(nSpace) + '^');
-    console.debug(decorator);
+    logger(decorator);
+    logger(line);
+    logger(' '.repeat(nSpace) + '^');
+    logger(decorator);
+}
+
+export function debugLine(text: string, offset: number) {
+    return printLine(text, offset, console.debug.bind(console));
+}
+
+export function errorLine(text: string, offset: number) {
+    return printLine(text, offset, console.error.bind(console));
 }

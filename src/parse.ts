@@ -1,4 +1,4 @@
-import {debugLine} from "./debug";
+import {errorLine} from "./debug";
 import {iolist, iolist_to_string, writeToFile} from "./io";
 import {registerEnum, registerException, registerStruct, registerType, toJsType} from "./type";
 import {isNDef, registerDefine} from "./macro";
@@ -33,7 +33,7 @@ export function skipAll(text: string, offset: number, char: string): number {
 export function skipOne(text: string, offset: number, char: string, res: iolist): number {
     offset = parseEmpty(text, offset, res);
     if (text[offset] !== char) {
-        debugLine(text, offset);
+        errorLine(text, offset);
         throw new Error(`expect '${char}' but see ${text[offset]} at [${offset}]`);
     }
     return offset + 1;
@@ -74,11 +74,9 @@ export function isNameChar(c: string): boolean {
 }
 
 export function parseName(text: string, offset: number): [string, number] {
-    console.debug('parseName', {offset});
-    debugLine(text, offset);
     const first = text[offset];
     if (!(first === '_' || isAlpha(first))) {
-        debugLine(text, offset);
+        errorLine(text, offset);
         throw new Error(`expect name, but see '${text[offset]}' at [${offset}]`);
     }
     const start = offset;
@@ -99,8 +97,6 @@ export async function parseModule(text: string, offset: number, selfFilename: st
     // res.push(' ', name, '{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
-        console.debug('parsing module body', {offset});
-        debugLine(text, offset);
         offset = parseEmpty(text, offset, res);
         if (text[offset] === '}') {
             break;
@@ -128,9 +124,11 @@ export interface Context {
 }
 
 export function parseTypeName(text: string, offset: number, res: iolist, ctx: Context): [TypeName, number] {
-    console.debug('parseTypeName', {offset});
-    debugLine(text, offset);
-    const end = text.indexOf(';', offset);
+    [',',';',')'].map(c=>)
+    let stopWord = text.indexOf(';', offset) < text.indexOf(',', offset)
+        ? ';'
+        : ',';
+    const end = text.indexOf(stopWord, offset);
     const type_name = text.substring(offset, end);
     const ss = type_name.split(' ');
     const name = ss.pop();
@@ -138,7 +136,7 @@ export function parseTypeName(text: string, offset: number, res: iolist, ctx: Co
     let type = ss.join(' ');
     type = toJsType(type, ctx.idlFilename, ctx.preRes);
     offset = end;
-    offset = skipOne(text, offset, ';', res);
+    offset = skipOne(text, offset, stopWord, res);
     return [{type, name}, offset];
 }
 
@@ -197,8 +195,6 @@ export function parseEmpty(text: string, offset: number, res: iolist): number {
 }
 
 export function parseStruct(text: string, offset: number, ctx: Context): [iolist, number] {
-    console.debug('parseStruct', {offset});
-    debugLine(text, offset);
     const res = [];
     offset += struct.length;
     res.push('export interface');
@@ -209,11 +205,7 @@ export function parseStruct(text: string, offset: number, ctx: Context): [iolist
     res.push(' ', name, '{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
-        console.debug('parsing struct fields...');
-        debugLine(text, offset);
         offset = parseEmpty(text, offset, res);
-        console.debug('after empty');
-        debugLine(text, offset);
         if (text[offset] === '}') {
             break;
         }
@@ -228,8 +220,6 @@ export function parseStruct(text: string, offset: number, ctx: Context): [iolist
 }
 
 export function parseException(text: string, offset: number, ctx: Context): [iolist, number] {
-    console.debug('parseException', {offset});
-    debugLine(text, offset);
     const res = [];
     offset += exception.length;
     res.push('export class');
@@ -240,11 +230,7 @@ export function parseException(text: string, offset: number, ctx: Context): [iol
     res.push(' ', name, ' extends Error{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
-        console.debug('parsing struct fields...');
-        debugLine(text, offset);
         offset = parseEmpty(text, offset, res);
-        console.debug('after empty');
-        debugLine(text, offset);
         if (text[offset] === '}') {
             break;
         }
@@ -259,8 +245,6 @@ export function parseException(text: string, offset: number, ctx: Context): [iol
 }
 
 export async function parseIfNDef(text: string, offset: number, selfFilename: string): Promise<[iolist, number]> {
-    console.debug('parseIfNDef', {offset});
-    debugLine(text, offset);
     const res = [];
     offset += ifndef.length;
     let name: string;
@@ -269,8 +253,6 @@ export async function parseIfNDef(text: string, offset: number, selfFilename: st
     const ignore = !isNDef(name);
     offset = parseEmpty(text, offset, res);
     for (; ;) {
-        console.debug('try to parse ifndef body...');
-        debugLine(text, offset);
         offset = parseEmpty(text, offset, res);
         if (text.startsWith(endif, offset)) {
             break;
@@ -286,8 +268,6 @@ export async function parseIfNDef(text: string, offset: number, selfFilename: st
 }
 
 export function parseDefine(text: string, offset: number): [iolist, number] {
-    console.debug('parseDefine', {offset});
-    debugLine(text, offset);
     offset += define.length;
     offset = parseSpace(text, offset);
     let name: string;
@@ -297,14 +277,12 @@ export function parseDefine(text: string, offset: number): [iolist, number] {
 }
 
 export async function parseInclude(text: string, offset: number, selfFilename: string): Promise<[iolist, number]> {
-    console.debug('parseInclude', {offset});
-    debugLine(text, offset);
     offset += include.length;
     const res = [];
     offset = parseSpace(text, offset);
     if (text[offset] !== '"') {
         // TODO support #include <file.idl>
-        debugLine(text, offset);
+        errorLine(text, offset);
         throw new Error('expect #include "file.idl"');
     }
     offset = skipOne(text, offset, '"', res);
@@ -336,8 +314,6 @@ export function parseEnum(text: string, offset: number, ctx: Context): [iolist, 
     offset = skipOne(text, offset, '{', res);
     let first = true;
     for (; ;) {
-        console.debug('try to parse enum value...', {offset});
-        debugLine(text, offset);
         offset = parseEmpty(text, offset, res);
         if (text[offset] === '}') {
             break;
@@ -401,11 +377,12 @@ export async function parseInterface(text: string, offset: number, ctx: Context)
                 type = 'out';
             } else {
                 console.error({offset});
-                debugLine(text, offset);
+                errorLine(text, offset);
                 throw new Error('unexpected text');
             }
             offset += type.length;
             offset = parseEmpty(text, offset, res);
+            parseTypeName()
             let argType: string;
             [argType, offset] = parseName(text, offset);
             offset = parseEmpty(text, offset, res);
@@ -416,7 +393,13 @@ export async function parseInterface(text: string, offset: number, ctx: Context)
             } else {
                 args.push(',');
             }
-            res.push(` ${argName}:${toJsType(argType, ctx.idlFilename, ctx.preRes)}`);
+            try {
+                res.push(` ${argName}:${toJsType(argType, ctx.idlFilename, ctx.preRes)}`);
+            } catch (e) {
+                console.error(`failed to get js type of '${argType}'`);
+                errorLine(text, offset);
+                throw e;
+            }
         }
         offset = skipOne(text, offset, ')', res);
         offset = parseEmpty(text, offset, res);
@@ -424,10 +407,17 @@ export async function parseInterface(text: string, offset: number, ctx: Context)
         if (text.startsWith(raises, offset)) {
             offset += raises.length;
             offset = skipOne(text, offset, '(', res);
+            let first = true;
             for (; ;) {
                 offset = parseEmpty(text, offset, res);
                 if (text.startsWith(')', offset)) {
                     break;
+                }
+                if (first) {
+                    first = false;
+                } else {
+                    offset = skipOne(text, offset, ',', res);
+                    offset = parseEmpty(text, offset, res);
                 }
                 let exceptionName: string;
                 [exceptionName, offset] = parseName(text, offset);
@@ -435,8 +425,9 @@ export async function parseInterface(text: string, offset: number, ctx: Context)
                 exceptions.push(name);
             }
             offset = skipOne(text, offset, ')', res);
-            offset = skipOne(text, offset, ';', res);
         }
+        offset = parseEmpty(text, offset, res);
+        offset = skipOne(text, offset, ';', res);
         if (exceptions.length > 0) {
             res.push(`/** @throws ${exceptions.join(',')} */`);
         }
@@ -453,8 +444,6 @@ function startsWith(pattern: string, text: string, offset: number): boolean {
 }
 
 export async function parse(text: string, offset = 0, selfFilename: string): Promise<[iolist, number]> {
-    console.debug('parse', {offset});
-    debugLine(text, offset);
     offset = parseSpace(text, offset);
     const ctx = {
         idlFilename: selfFilename
@@ -506,7 +495,7 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
         filename: selfFilename, offset, len: text.length
         , line: getLineNum(text, offset)
     });
-    debugLine(text, offset);
+    errorLine(text, offset);
     throw new Error('unexpected text');
 }
 
