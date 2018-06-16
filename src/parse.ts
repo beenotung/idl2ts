@@ -1,5 +1,5 @@
-import {errorLine} from "./debug";
-import {iolist, iolist_to_string, writeToFile} from "./io";
+import {debugLine, errorLine} from "./debug";
+import {iolist, writeToFile} from "./io";
 import {registerEnum, registerException, registerStruct, registerType, toJsType} from "./type";
 import {isNDef, registerDefine} from "./macro";
 import * as util from "util";
@@ -7,6 +7,7 @@ import * as fs from "fs";
 import {transpileFile} from "./transpiler";
 import {getDir} from "./path";
 import {getLineNum} from "./string";
+import {compare} from "./comapre";
 
 export const ifndef = '#ifndef';
 export const endif = '#endif';
@@ -124,19 +125,27 @@ export interface Context {
 }
 
 export function parseTypeName(text: string, offset: number, res: iolist, ctx: Context): [TypeName, number] {
-    [',',';',')'].map(c=>)
-    let stopWord = text.indexOf(';', offset) < text.indexOf(',', offset)
-        ? ';'
-        : ',';
+    const stopCharIdx_list = [',', ';', ')']
+        .map(char => ({char, idx: text.indexOf(char, offset)}))
+        .filter(x => x.idx !== -1)
+    ;
+    stopCharIdx_list.sort((a, b) => compare(a.idx, b.idx));
+    const stopWord = stopCharIdx_list[0].char;
     const end = text.indexOf(stopWord, offset);
     const type_name = text.substring(offset, end);
     const ss = type_name.split(' ');
     const name = ss.pop();
     registerType(name, ctx.idlFilename);
     let type = ss.join(' ');
-    type = toJsType(type, ctx.idlFilename, ctx.preRes);
+    try {
+        type = toJsType(type, ctx.idlFilename, ctx.preRes);
+    } catch (e) {
+        console.error(`failed get js type of '${type}'`);
+        errorLine(text, offset);
+        throw e;
+    }
     offset = end;
-    offset = skipOne(text, offset, stopWord, res);
+    // offset = skipOne(text, offset, stopWord, res);
     return [{type, name}, offset];
 }
 
@@ -334,6 +343,100 @@ export function parseEnum(text: string, offset: number, ctx: Context): [iolist, 
     return [res, offset];
 }
 
+// TODO design Box for out and inout
+export function parseMethodArgument(text: string, offset: number, ctx: Context): [iolist, number] {
+    const res = [];
+    const direction: string = text.substring(offset, text.indexOf(' ', offset));
+    if (!(
+            direction === 'in'
+            || direction === 'out'
+            || direction === 'inout'
+        )) {
+        errorLine(text, offset);
+        throw new Error(`invalid direction '${direction}'`);
+    }
+    offset += direction.length;
+    offset = parseEmpty(text, offset, res);
+    let typeName: TypeName;
+    [typeName, offset] = parseTypeName(text, offset, res, ctx);
+    res.push(`${typeName.name}:${typeName.type}`);
+    return [res, offset];
+}
+
+export function parseRaisesException(text: string, offset: number): [iolist, number] {
+    const res = [];
+    offset = skipOne(text, offset, raises, res);
+    offset = skipOne(text, offset, '(', res);
+    let first = true;
+    for (; ;) {
+        offset = parseEmpty(text, offset, res);
+        if (text[offset] === ')') {
+            break;
+        }
+        if (first) {
+            first = false;
+        } else {
+            res.push(',');
+            offset = skipOne(text, offset, ',', res);
+            offset = parseEmpty(text, offset, res);
+        }
+        let name: string;
+        [name, offset] = parseName(text, offset);
+        res.push(`/** @throws ${name}} */`);
+    }
+    offset = skipOne(text, offset, ')', res);
+    return [res, offset];
+}
+
+export function parseMethod(text: string, offset: number, ctx: Context): [iolist, number] {
+    const res = [];
+
+    let returnType: string;
+    [returnType, offset] = parseName(text, offset);
+    offset = parseEmpty(text, offset, res);
+
+    let methodName: string;
+    [methodName, offset] = parseName(text, offset);
+    offset = parseEmpty(text, offset, res);
+
+    res.push('abstract ', methodName);
+
+    /* parse arguments */
+    let first = true;
+    offset = skipOne(text, offset, '(', res);
+    res.push('(');
+    for (; ;) {
+        offset = parseEmpty(text, offset, res);
+        if (text[offset] === ')') {
+            break;
+        }
+        if (first) {
+            first = false;
+        } else {
+            res.push(',');
+            offset = skipOne(text, offset, ',', res);
+            offset = parseEmpty(text, offset, res);
+        }
+        let arg: iolist;
+        [arg, offset] = parseMethodArgument(text, offset, ctx);
+        console.debug({arg, c: text[offset]});
+        debugLine(text, offset);
+        res.push(arg);
+    }
+    offset = skipOne(text, offset, ')', res);
+    res.push('):', returnType, ';');
+
+    /* parse optional exceptions */
+    offset = parseEmpty(text, offset, res);
+    const exceptions: iolist = [];
+    if (text.startsWith(raises, offset)) {
+        let exceptions: iolist;
+        [exceptions, offset] = parseRaisesException(text, offset);
+    }
+
+    return [[exceptions, res], offset];
+}
+
 export async function parseInterface(text: string, offset: number, ctx: Context): Promise<[iolist, number]> {
     const res = [];
     offset += interface_.length;
@@ -349,89 +452,9 @@ export async function parseInterface(text: string, offset: number, ctx: Context)
         if (text.startsWith('}', offset)) {
             break;
         }
-        let methodType: string;
-        [methodType, offset] = parseName(text, offset);
-        offset = parseEmpty(text, offset, res);
-        let methodName: string;
-        [methodName, offset] = parseName(text, offset);
-        offset = parseEmpty(text, offset, res);
-        offset = skipOne(text, offset, '(', res);
-        const args = [];
-        let firstArgs = true;
-        for (; ;) {
-            offset = parseEmpty(text, offset, res);
-            if (text.startsWith(')', offset)) {
-                break;
-            }
-            if (!firstArgs) {
-                offset = skipOne(text, offset, ',', res);
-                offset = parseEmpty(text, offset, res);
-            }
-            // TODO design Box for out and inout
-            let type: 'in' | 'out' | 'inout';
-            if (startsWith(inout, text, offset)) {
-                type = 'inout';
-            } else if (startsWith(in_, text, offset)) {
-                type = 'in';
-            } else if (startsWith(out, text, offset)) {
-                type = 'out';
-            } else {
-                console.error({offset});
-                errorLine(text, offset);
-                throw new Error('unexpected text');
-            }
-            offset += type.length;
-            offset = parseEmpty(text, offset, res);
-            parseTypeName()
-            let argType: string;
-            [argType, offset] = parseName(text, offset);
-            offset = parseEmpty(text, offset, res);
-            let argName: string;
-            [argName, offset] = parseName(text, offset);
-            if (firstArgs) {
-                firstArgs = false;
-            } else {
-                args.push(',');
-            }
-            try {
-                res.push(` ${argName}:${toJsType(argType, ctx.idlFilename, ctx.preRes)}`);
-            } catch (e) {
-                console.error(`failed to get js type of '${argType}'`);
-                errorLine(text, offset);
-                throw e;
-            }
-        }
-        offset = skipOne(text, offset, ')', res);
-        offset = parseEmpty(text, offset, res);
-        const exceptions: string[] = [];
-        if (text.startsWith(raises, offset)) {
-            offset += raises.length;
-            offset = skipOne(text, offset, '(', res);
-            let first = true;
-            for (; ;) {
-                offset = parseEmpty(text, offset, res);
-                if (text.startsWith(')', offset)) {
-                    break;
-                }
-                if (first) {
-                    first = false;
-                } else {
-                    offset = skipOne(text, offset, ',', res);
-                    offset = parseEmpty(text, offset, res);
-                }
-                let exceptionName: string;
-                [exceptionName, offset] = parseName(text, offset);
-                const name = toJsType(exceptionName, ctx.idlFilename, ctx.preRes);
-                exceptions.push(name);
-            }
-            offset = skipOne(text, offset, ')', res);
-        }
-        offset = parseEmpty(text, offset, res);
-        offset = skipOne(text, offset, ';', res);
-        if (exceptions.length > 0) {
-            res.push(`/** @throws ${exceptions.join(',')} */`);
-        }
-        res.push(` abstract ${methodName}(${iolist_to_string(args)}):${methodType};`);
+        let method: iolist;
+        [method, offset] = parseMethod(text, offset, ctx);
+        res.push(method);
     }
     res.push('}');
     offset = skipOne(text, offset, '}', res);
