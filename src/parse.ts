@@ -1,4 +1,4 @@
-import {debugLine, errorLine} from "./debug";
+import {errorLine} from "./debug";
 import {iolist, writeToFile} from "./io";
 import {registerEnum, registerException, registerStruct, registerType, toJsType} from "./type";
 import {isNDef, registerDefine} from "./macro";
@@ -125,8 +125,6 @@ export interface Context {
 }
 
 export function parseTypeName(text: string, offset: number, res: iolist, ctx: Context, skipStopWord = false): [TypeName, number] {
-    console.debug(`parseTypeName: ${offset}`);
-    debugLine(text, offset);
     const stopCharIdx_list = [',', ';', ')', '(']
         .map(char => ({char, idx: text.indexOf(char, offset)}))
         .filter(x => x.idx !== -1)
@@ -135,7 +133,6 @@ export function parseTypeName(text: string, offset: number, res: iolist, ctx: Co
     const stopWord = stopCharIdx_list[0].char;
     const end = text.indexOf(stopWord, offset);
     const type_name = text.substring(offset, end);
-    console.debug({stopWord, type_name});
     const ss = type_name.split(' ');
     const name = ss.pop();
     registerType(name, ctx.idlFilename);
