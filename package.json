@@ -8,12 +8,11 @@
     "idl2ts": "./dist/index.js"
   },
   "scripts": {
-    "postinstall": "npm run build",
     "build": "tsc",
     "lint": "tslint -p .",
     "format": "tslint -p . --fix",
     "test": "npm run build && npm run lint",
-    "prePublishOnly": "npm run test"
+    "prepublishOnly": "npm run test"
   },
   "keywords": [],
   "author": "Beeno Tung",
