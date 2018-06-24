@@ -124,8 +124,10 @@ export interface Context {
     preRes: iolist
 }
 
-export function parseTypeName(text: string, offset: number, res: iolist, ctx: Context): [TypeName, number] {
-    const stopCharIdx_list = [',', ';', ')']
+export function parseTypeName(text: string, offset: number, res: iolist, ctx: Context, skipStopWord = false): [TypeName, number] {
+    console.debug(`parseTypeName: ${offset}`);
+    debugLine(text, offset);
+    const stopCharIdx_list = [',', ';', ')', '(']
         .map(char => ({char, idx: text.indexOf(char, offset)}))
         .filter(x => x.idx !== -1)
     ;
@@ -133,6 +135,7 @@ export function parseTypeName(text: string, offset: number, res: iolist, ctx: Co
     const stopWord = stopCharIdx_list[0].char;
     const end = text.indexOf(stopWord, offset);
     const type_name = text.substring(offset, end);
+    console.debug({stopWord, type_name});
     const ss = type_name.split(' ');
     const name = ss.pop();
     registerType(name, ctx.idlFilename);
@@ -145,7 +148,9 @@ export function parseTypeName(text: string, offset: number, res: iolist, ctx: Co
         throw e;
     }
     offset = end;
-    // offset = skipOne(text, offset, stopWord, res);
+    if (!skipStopWord) {
+        offset = skipOne(text, offset, stopWord, res);
+    }
     return [{type, name}, offset];
 }
 
@@ -358,14 +363,18 @@ export function parseMethodArgument(text: string, offset: number, ctx: Context):
     offset += direction.length;
     offset = parseEmpty(text, offset, res);
     let typeName: TypeName;
-    [typeName, offset] = parseTypeName(text, offset, res, ctx);
+    [typeName, offset] = parseTypeName(text, offset, res, ctx, true);
     res.push(`${typeName.name}:${typeName.type}`);
     return [res, offset];
 }
 
 export function parseRaisesException(text: string, offset: number): [iolist, number] {
     const res = [];
-    offset = skipOne(text, offset, raises, res);
+    if (!startsWith(raises, text, offset)) {
+        errorLine(text, offset);
+        throw new Error(`expect '${raises}' but see '${text[offset]}'`);
+    }
+    offset += raises.length;
     offset = skipOne(text, offset, '(', res);
     let first = true;
     for (; ;) {
@@ -391,13 +400,10 @@ export function parseRaisesException(text: string, offset: number): [iolist, num
 export function parseMethod(text: string, offset: number, ctx: Context): [iolist, number] {
     const res = [];
 
-    let returnType: string;
-    [returnType, offset] = parseName(text, offset);
-    offset = parseEmpty(text, offset, res);
-
-    let methodName: string;
-    [methodName, offset] = parseName(text, offset);
-    offset = parseEmpty(text, offset, res);
+    let methodTypeName: TypeName;
+    [methodTypeName, offset] = parseTypeName(text, offset, res, ctx, true);
+    const returnType = methodTypeName.type;
+    const methodName = methodTypeName.name;
 
     res.push('abstract ', methodName);
 
@@ -419,8 +425,6 @@ export function parseMethod(text: string, offset: number, ctx: Context): [iolist
         }
         let arg: iolist;
         [arg, offset] = parseMethodArgument(text, offset, ctx);
-        console.debug({arg, c: text[offset]});
-        debugLine(text, offset);
         res.push(arg);
     }
     offset = skipOne(text, offset, ')', res);
@@ -433,6 +437,8 @@ export function parseMethod(text: string, offset: number, ctx: Context): [iolist
         let exceptions: iolist;
         [exceptions, offset] = parseRaisesException(text, offset);
     }
+
+    offset = skipOne(text, offset, ';', res);
 
     return [[exceptions, res], offset];
 }

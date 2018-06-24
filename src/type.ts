@@ -66,6 +66,10 @@ export function toJsType(type: string, selfFilename: string, preRes: iolist): st
             return 'string';
         case 'any':
             return 'any';
+        case 'void':
+            return 'void';
+        case 'boolean':
+            return 'boolean';
     }
     if (type.startsWith(unsigned + ' ')) {
         type = type.substring(unsigned.length + 1);
