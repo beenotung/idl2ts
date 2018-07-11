@@ -1,0 +1,30 @@
+#include "shared.idl"
+
+module demo {
+  module smartcontract {
+
+    interface GeneralContract {
+
+      void create(in newDataContainer NewDataContainer) raises(NetworkError, OutOfSpace, AuthError);
+
+      void update(in dataContainer DataContainer) raises(NotFound, AuthError, NetworkError, OutOfSpace);
+
+      dataContainer read(in transactionId TxId) raises(NotFound);
+
+    };
+
+    // for group and user
+    interface UserContract : GeneralContract {
+
+      GroupSeq searchGroupByName(in string GroupName);
+
+      // raises NotFound when the Group doesn't exist
+      UserSeq searchUserByGroup(in transactionId GroupId, in string UserName) raises(NotFound);
+
+      pubKey getUserPublicKey(in transactionId UserId) raises(NotFound);
+
+      boolean verifySignature(in byteSeq Hash, in transactionId UserId) raises(NotFound); // return true if valid, false if not.
+
+    };
+  };
+};

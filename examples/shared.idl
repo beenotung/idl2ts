@@ -1,12 +1,11 @@
-#ifndef _datasharing_shared_
-#define _datasharing_shared_
+#ifndef _demo_shared_
+#define _demo_shared_
 
 #include "data.idl"
 
-module datasharing {
+module demo {
 
-    typedef sequence<org> OrgSeq;
-    typedef sequence<department> DepartmentSeq;
+    typedef sequence<group> GroupSeq;
     typedef sequence<user> UserSeq;
 
     struct block {
@@ -19,7 +18,22 @@ module datasharing {
     };
 
     struct dataContainer {
-      short Type;
+      /*
+      .Values of Type
+      | code | meaning
+
+      | 0x01 | expire
+
+      | 0x02 | user
+      | 0x03 | group
+      | 0x04 | user_group
+      | 0x05 | endorse_user_group
+
+      | 0x06 | meta
+      | 0x07 | request
+      | 0x08 | reply
+      */
+      octet Type;
       transactionId TxId;
       any Data;
     };

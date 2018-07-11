@@ -1,8 +1,9 @@
-module datasharing {
+module demo {
 
   typedef string<256> transactionId;
   typedef unsigned long long date; // like long in Java
   typedef sequence<octet> byteSeq;
+  typedef string base64;
 
   // to be used inline
   struct multihash {
@@ -22,6 +23,11 @@ module datasharing {
     sequence<octet> PubKey;
   };
 
+  struct keyPair {
+    string Method;  // e.g. RSA PEM
+    string Content; // PEM, json, base64 or any way specified by Method
+  };
+
   struct expire {
     transactionId TxId;
     date ExpireDate;
@@ -29,68 +35,43 @@ module datasharing {
     signature Signature;
   };
 
-  struct org {
-    transactionId TxId;
-    string OrgName;
-    pubKey OrgPubKey;
-    signature Signature;
-  };
-
-  struct department {
-    transactionId TxId;
-    string OrgId; // Org TxId;
-    string DepartmentName;
-    pubKey DepartmentPubKey;
-    signature Signature;
-  };
-
   struct user {
     transactionId TxId;
-    string DepartmentId;
     string UserName;    // free text
     pubKey UserPubKey;
-    signature Signature;
+    signature Signature; // self signed
   };
 
-  /* for data publish */
-  struct meta {
+  struct group {
     transactionId TxId;
-    date PublishDate;
-    sequence<string> Tags;
-    string Desc;              // optional
-    string PreviewUrl;        // optional
-    multihash ContentHash;    // hash for the raw data to be shared
-    transactionId OwnerUserId;
-    signature Signature;
-    string Price;             // e.g. HKD $200, an Apple
+    string GroupName;
+    pubKey GroupPubKey;
+    transactionId CreatorId; // user id of the founder
+    signature Signature; // self signed by group
   };
 
-  struct request {
+  struct user_group {
     transactionId TxId;
-    transactionId PublishTxId;
-    transactionId RequesterUserId;
-    date ExpireDate;              // timeout to auto cancel the request
-    signature Signature;
-    string Offer;                 // e.g. HKD $200, an Orange
-  };
-
-  struct reply {
-    transactionId TxId;
-    transactionId RequestTxId;
+    transactionId GroupId;
+    transactionId UserId;
     /*
-    .Values of Answer
+    .Values of Action
     |===
     | code | meaning
-    | 0x00 | reject
-    | 0x01 | accept
-    | 0x02 - 0xff | reserved
+    | 0x00 | join
+    | 0x01 | quit
     |===
     */
-    octet Answer;
-    sequence<octet> DataUrl; // the link or data can be encrypted by the requester pubKey
-    string EncryptionMethod; // optional, e.g. RSA-Url, RSA-Content
-    date ExpireDate;         // expire time of the DataUrl if it's not permanent
-    signature Signature;
+    octet Action;
+    signature Signature; // signed by user
+  };
+
+  // only for join group
+  struct endorse_user_group {
+    transactionId TxId;
+    transactionId UserGroupId; // transaction id of the user_group proposal
+    transactionId Endorser; // user id of a group member
+    signature Signature; // signed by the endorser
   };
 
 };

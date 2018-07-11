@@ -1,9 +1,8 @@
 #include "shared.idl"
 
-module datasharing {
+module demo {
   module server {
 
-    typedef sequence<meta> MetaSeq;
     typedef sequence<string> StringSeq;
     typedef sequence<block> BlockSeq;
 
@@ -11,53 +10,41 @@ module datasharing {
     interface TransactionHandler {
 
       // POST: /create
-      void createTransaction(in newDataContainer NewDataContainer) raises(OutOfSpace);
+      void createTransaction(in newDataContainer NewDataContainer) raises(OutOfSpace, AuthError);
 
       // POST: /update
       void updateTransaction(in dataContainer DataContainer) raises(OutOfSpace, NotFound, AuthError);
 
-      // GET: /get
-      dataContainer getTransaction(in transactionId TxId) raises(NotFound);
+      // GET: /get/:TxId
+      dataContainer getData(in transactionId TxId) raises(NotFound, NetworkError);
+
+      // POST: /expire
+      void expireData(in expire Expire) raises(NotFound, OutOfSpace, NetworkError, AuthError);
 
     };
 
     // route: /user
     interface UserHandler {
 
-      // GET: /searchOrgByName
-      OrgSeq searchOrgByName(in string OrgName);
+      // GET: /searchGroupByName/:GroupName
+      GroupSeq searchGroupByName(in string GroupName);
 
-      // raises NotFound when the Org doesn't exist
-      // GET: /searchDepartmentByName
-      DepartmentSeq searchDepartmentByName(in transactionId OrgId, in string DepartmentName) raises(NotFound);
+      // raises NotFound when the Group doesn't exist
+      // GET: /searchUserByGroup/:GroupId/:UserName
+      UserSeq searchUserByGroup(in transactionId GroupId, in string UserName) raises(NotFound);
 
-      // raises NotFound when the Department doesn't exist
-      // GET: /searchUserByDepartment
-      UserSeq searchUserByDepartment(in transactionId DepartmentId, in string UserName) raises(NotFound);
-
-      // GET: /getUserPublicKey
+      // GET: /getUserPublicKey/:UserId
       pubKey getUserPublicKey(in transactionId UserId) raises(NotFound);
 
-      // GET: /verifySignature
-      boolean verifySignature(in byteSeq Hash, in transactionId UserId) raises(NotFound); // return true if valid, false if not.
-
-    };
-
-    // route: /meta
-    interface MetaHandler {
-
-      // GET: /all
-      MetaSeq all();
-
-      // GET: /search
-      MetaSeq search(in StringSeq Tags, in string Keyword);
+      // GET: /verifySignature/:Hash/UserId
+      boolean verifySignature(in base64 Hash, in transactionId UserId) raises(NotFound); // return true if valid, false if not.
 
     };
 
     // route: /block
     interface BlockHandler {
 
-      // GET: /show
+      // GET: /show/:Height
       block showBlock(in unsigned long long Height) raises(NetworkError);
 
       // GET: /showAll

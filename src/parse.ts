@@ -447,8 +447,19 @@ export async function parseInterface(text: string, offset: number, ctx: Context)
     offset = parseEmpty(text, offset, res);
     let name: string;
     [name, offset] = parseName(text, offset);
-    res.push(' ', name, '{');
+    res.push(' ', name);
     offset = parseEmpty(text, offset, res);
+    if (text[offset] === ':') {
+        /* extends */
+        // TODO handle multiple inheritance
+        offset++;
+        offset = parseEmpty(text, offset, res);
+        let parentName: string;
+        [parentName, offset] = parseName(text, offset);
+        offset = parseEmpty(text, offset, res);
+        res.push(' extends ', parentName);
+    }
+    res.push('{');
     offset = skipOne(text, offset, '{', res);
     for (; ;) {
         offset = parseEmpty(text, offset, res);
