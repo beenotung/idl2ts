@@ -12,4 +12,8 @@ async function main() {
     await transpileFile(filename);
 }
 
-main();
+main()
+    .catch(e => {
+        console.error(e);
+        process.exit(1);
+    });
