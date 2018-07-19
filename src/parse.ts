@@ -546,7 +546,7 @@ export async function parseFile(filename: string): Promise<iolist> {
         topTrees.push(tree);
         if (offset != text.length
             && !(offset + 1 === text.length && text[offset + 1] === undefined)) {
-            console.log('continue to parse', {
+            console.debug('continue to parse', {
                 filename, offset, length: text.length
                 , char: text[offset]
                 , next: text[offset + 1]
