@@ -1,6 +1,6 @@
 {
   "name": "idl2ts",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "convert IDL to typescript",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
