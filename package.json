@@ -4,6 +4,7 @@
   "description": "convert IDL to typescript",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": "dist",
   "bin": {
     "idl2ts": "./dist/index.js"
   },

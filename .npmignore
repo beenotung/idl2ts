@@ -1,9 +1,8 @@
-node_modules/
-yarn.lock
-examples/
-err.log
-out.log
-src/
-.idea/
 dev
+examples
+node_modules
 run
+src
+tsconfig.json
+tslint.json
+yarn.lock

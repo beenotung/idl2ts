@@ -490,6 +490,10 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
         return [[ctx.preRes, res], offset]as [iolist, number];
     });
 
+    if (offset >= text.length) {
+      return [[], offset];
+    }
+
     /* macro */
     if (startsWith(define, text, offset)) {
         return defer(parseDefine(text, offset));
