@@ -48,9 +48,10 @@ export function parseSpace(text: string, offset: number): number {
             case '\t':
                 continue;
             default:
-                return offset;
+                break;
         }
     }
+    return offset;
 }
 
 export function isBetween(a, m, b) {
