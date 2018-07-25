@@ -491,7 +491,7 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
     });
 
     if (offset >= text.length) {
-      return [[], offset];
+        return [[], offset];
     }
 
     /* macro */
@@ -533,7 +533,9 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
 
     /* unknown token */
     console.error({
-        filename: selfFilename, offset, len: text.length
+        filename: selfFilename
+        , offset
+        , len: text.length
         , line: getLineNum(text, offset)
     });
     errorLine(text, offset);
