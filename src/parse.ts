@@ -48,7 +48,7 @@ export function parseSpace(text: string, offset: number): number {
             case '\t':
                 continue;
             default:
-                break;
+                return offset;
         }
     }
     return offset;
@@ -482,7 +482,9 @@ function startsWith(pattern: string, text: string, offset: number): boolean {
 }
 
 export async function parse(text: string, offset = 0, selfFilename: string): Promise<[iolist, number]> {
+    console.debug('parse', {text_len: text.length, offset, selfFilename});
     offset = parseSpace(text, offset);
+    console.debug('after parseSpace', {offset});
     const ctx = {
         idlFilename: selfFilename
         , preRes: []
@@ -492,6 +494,7 @@ export async function parse(text: string, offset = 0, selfFilename: string): Pro
     });
 
     if (offset >= text.length) {
+        console.debug('return early', {offset});
         return [[], offset];
     }
 
@@ -548,8 +551,10 @@ export async function parseFile(filename: string): Promise<iolist> {
     const topTrees = [];
     let offset = 0;
     for (; ;) {
+        console.debug('offset:', offset);
         let tree: iolist;
         [tree, offset] = await parse(text, offset, filename);
+        console.debug({tree, offset});
         topTrees.push(tree);
         if (offset != text.length
             && !(offset + 1 === text.length && text[offset + 1] === undefined)) {
