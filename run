@@ -5,4 +5,4 @@ rm -rf dist
 if [ ! -d node_modules ]; then
   npm i
 fi
-ts-node src/index.ts $@
+./node_modules/.bin/ts-node src/index.ts $@
