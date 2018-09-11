@@ -3,6 +3,6 @@ set -e
 set -o pipefail
 rm -rf dist
 if [ ! -d node_modules ]; then
-  yarn || npm i
+  npm i
 fi
 ts-node src/index.ts $@
