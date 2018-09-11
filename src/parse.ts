@@ -400,7 +400,7 @@ export function parseMethod(text: string, offset: number, ctx: Context): [iolist
 
     let methodTypeName: TypeName;
     [methodTypeName, offset] = parseTypeName(text, offset, res, ctx, true);
-    const returnType = methodTypeName.type;
+    const returnType = methodTypeName.type + '|Promise<' + methodTypeName.type + '>';
     const methodName = methodTypeName.name;
 
     res.push('abstract ', methodName);
